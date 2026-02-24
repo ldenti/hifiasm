@@ -993,7 +993,7 @@ void prt_dbg_rs(FILE *fp, Debug_reads* x, uint64_t round)
     destory_UC_Read(&g_read);
 }
 
-void ha_ec(int64_t round, int num_pround, int des_idx, uint64_t *tot_b, uint64_t *tot_e)
+void ha_ec(int64_t round, int num_pround, int des_idx, uint64_t *tot_b, uint64_t *tot_e, int ec = 1)
 {
 	int hom_cov, het_cov, r_out = 0;
     ha_flt_tab_hp = ha_idx_hp = NULL; (*tot_b) = (*tot_e) = 0;
@@ -1017,8 +1017,8 @@ void ha_ec(int64_t round, int num_pround, int des_idx, uint64_t *tot_b, uint64_t
 
     // Output_corrected_fastq();
 
-
-    cal_ec_r(asm_opt.thread_num, round, num_pround, R_INF.total_reads, (round == (asm_opt.number_of_round-1))?1:0, tot_b, tot_e);
+    if (ec)
+      cal_ec_r(asm_opt.thread_num, round, num_pround, R_INF.total_reads, (round == (asm_opt.number_of_round-1))?1:0, tot_b, tot_e);
 
     // exit(1);    
 
@@ -2084,7 +2084,11 @@ int ha_assemble(void)
 			ha_opt_update_cov(&asm_opt, hom_cov);
 		}
 		// error correction
-		assert(asm_opt.number_of_round > 0);
+		// assert(asm_opt.number_of_round > 0);
+		if (asm_opt.number_of_round == 0) {
+		  tot_b = tot_e = 0;
+		  ha_ec(0, asm_opt.number_of_pround, 0, &tot_b, &tot_e, 0);
+		}
 		for (r = ha_idx?asm_opt.number_of_round-1:0; r < asm_opt.number_of_round; ++r) {
 			ha_opt_reset_to_round(&asm_opt, r); // this update asm_opt.roundID and a few other fields
             tot_b = tot_e = 0;

@@ -506,8 +506,8 @@ int check_option(hifiasm_opt_t* asm_opt)
 
     if(asm_opt->number_of_round < 1)
     {
-        fprintf(stderr, "[ERROR] the number of rounds for correction must be > 0 (-r)\n");
-        return 0;
+        fprintf(stderr, "[WARNING] reads will not be corrected\n");
+        // return 0;
     }
 
     if(asm_opt->clean_round < 1)
