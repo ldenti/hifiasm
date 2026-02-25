@@ -81,6 +81,7 @@ static ko_longopt_t long_options[] = {
     { "ul-m",     ko_required_argument, 363},
     { "rl-cut",     ko_required_argument, 364},
     { "sc-cut",     ko_required_argument, 365},
+    { "het-cov",    ko_required_argument, 367},
     // { "path-round",     ko_required_argument, 348},
 	{ 0, 0, 0 }
 };
@@ -128,6 +129,8 @@ void Print_H(hifiasm_opt_t* asm_opt)
                                       asm_opt->ul_pst_join, asm_opt->hifi_pst_join);
     fprintf(stderr, "    --hom-cov    INT\n");
     fprintf(stderr, "                 homozygous read coverage [auto]\n");
+    fprintf(stderr, "    --het-cov    INT\n");
+    fprintf(stderr, "                 heterozygous read coverage; used to set error k-mer threshold [auto]\n");
     fprintf(stderr, "    --lowQ       INT\n");
     fprintf(stderr, "                 output contig regions with >=INT%% inconsistency in BED format; 0 to disable [%d]\n", asm_opt->bed_inconsist_rate);
     fprintf(stderr, "    --b-cov      INT\n");
@@ -1003,6 +1006,8 @@ int CommandLine_process(int argc, char *argv[], hifiasm_opt_t* asm_opt)
             asm_opt->rl_cut = atol(opt.arg);
         } else if (c == 365) {
             asm_opt->sc_cut = atol(opt.arg);
+        } else if (c == 367) {
+            asm_opt->het_cov = atoi(opt.arg);
         } else if (c == 'l') {   ///0: disable purge_dup; 1: purge containment; 2: purge overlap
             asm_opt->purge_level_primary = asm_opt->purge_level_trio = atoi(opt.arg);
         }

@@ -2,8 +2,23 @@
 #define __COMMAND_LINE_PARSER__
 
 #define __STDC_LIMIT_MACROS
-#include <pthread.h>
 #include <stdint.h>
+
+// Workaround for kernel header issues - define types before pthread
+#ifndef __u32
+typedef unsigned int __u32;
+#endif
+#ifndef __s32
+typedef signed int __s32;
+#endif
+#ifndef __u64
+typedef unsigned long long __u64;
+#endif
+#ifndef __s64
+typedef signed long long __s64;
+#endif
+
+#include <pthread.h>
 
 #define HA_VERSION "0.25.0-r726"
 
