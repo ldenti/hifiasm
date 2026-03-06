@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <limits.h>
+#include <math.h>
 #include <sys/time.h>
 #include "CommandLines.h"
 #include "ketopt.h"
@@ -82,6 +83,10 @@ static ko_longopt_t long_options[] = {
     { "rl-cut",     ko_required_argument, 364},
     { "sc-cut",     ko_required_argument, 365},
     { "het-cov",    ko_required_argument, 367},
+    { "tumor-purity", ko_required_argument, 368},
+    { "clonality",    ko_required_argument, 369},
+    { "dispersion",   ko_required_argument, 370},
+    { "somatic-fnr",  ko_required_argument, 371},
     // { "path-round",     ko_required_argument, 348},
 	{ 0, 0, 0 }
 };
@@ -131,6 +136,14 @@ void Print_H(hifiasm_opt_t* asm_opt)
     fprintf(stderr, "                 homozygous read coverage [auto]\n");
     fprintf(stderr, "    --het-cov    INT\n");
     fprintf(stderr, "                 heterozygous read coverage; used to set error k-mer threshold [auto]\n");
+    fprintf(stderr, "    --tumor-purity FLOAT\n");
+    fprintf(stderr, "                 tumor purity (0,1]; triggers neg-binomial threshold for --het-cov [off]\n");
+    fprintf(stderr, "    --clonality  FLOAT\n");
+    fprintf(stderr, "                 subclonal fraction (0,1]; used with --tumor-purity [1.0]\n");
+    fprintf(stderr, "    --dispersion FLOAT\n");
+    fprintf(stderr, "                 over-dispersion alpha for neg-binomial model [%.2f]\n", asm_opt->dispersion);
+    fprintf(stderr, "    --somatic-fnr FLOAT\n");
+    fprintf(stderr, "                 max false-negative rate for somatic SFS threshold [%.2f]\n", asm_opt->somatic_fnr);
     fprintf(stderr, "    --lowQ       INT\n");
     fprintf(stderr, "                 output contig regions with >=INT%% inconsistency in BED format; 0 to disable [%d]\n", asm_opt->bed_inconsist_rate);
     fprintf(stderr, "    --b-cov      INT\n");
@@ -276,6 +289,10 @@ void init_opt(hifiasm_opt_t* asm_opt)
 	asm_opt->max_ov_diff_final = 0.03;
 	asm_opt->hom_cov = 20;
     asm_opt->het_cov = -1024;
+    asm_opt->tumor_purity = -1.0;
+    asm_opt->clonality = -1.0;
+    asm_opt->dispersion = 0.02;
+    asm_opt->somatic_fnr = 0.10;
 	asm_opt->max_n_chain = MIN_N_CHAIN;
 	asm_opt->min_hist_kmer_cnt = 5;
     asm_opt->load_index_from_disk = 1;
@@ -426,6 +443,82 @@ void ha_opt_update_cov_min(hifiasm_opt_t *opt, int hom_cov, int min_chain)
 	opt->hom_cov = hom_cov; opt->max_n_chain = max_n_chain;
     if(opt->max_n_chain < min_chain) opt->max_n_chain = min_chain;
 	fprintf(stderr, "[M::%s] updated max_n_chain to %d\n", __func__, opt->max_n_chain);
+}
+
+/**
+ * Compute the het_cov threshold for somatic error correction using a
+ * Negative Binomial model.
+ *
+ * The expected read count for a somatic variant is:
+ *   mu = coverage * purity * clonality * 0.5
+ *
+ * We model read depth with NegBin(r, p) where r = 1/alpha, p = r/(mu+r).
+ *
+ * het_cov is set to the MODE of this distribution:
+ *   mode = floor((r-1)*(1-p)/p)  for r > 1
+ * which equals floor(mu) when overdispersion is small (alpha << 1).
+ *
+ * We also compute P(X < mode) as the false-negative rate: the probability
+ * that a true somatic variant has fewer reads than het_cov.  This is
+ * reported for informational purposes.
+ *
+ * Returns: het_cov = Q(1-FNR) of NB(mu, 1/alpha) (>= 2).
+ *          If mu <= 0, returns 0.
+ *
+ * Logic:
+ *   In hifiasm, higher het_cov = less aggressive error correction:
+ *     - low_occ = floor(het_cov/2): k-mers with count <= low_occ are penalized
+ *       (weight 2 => weaker overlaps => less correction => variant protected)
+ *     - wcns_vote: oc[0] >= het_cov triggers forced correction; higher het_cov
+ *       makes this harder to trigger, protecting low-coverage positions.
+ *
+ *   To protect somatic k-mers (expected count ~ mu) from error correction:
+ *     het_cov = smallest k s.t. P(X <= k) >= 1 - FNR
+ *   This is the (1-FNR) quantile of NB(mu, 1/dispersion).
+ *
+ *   Example (mu=3.74, alpha=0.02):
+ *     FNR=0.10 => het_cov=6,  low_occ=3 (strong protection)
+ *     FNR=0.20 => het_cov=5,  low_occ=2
+ *     FNR=0.50 => het_cov=3-4 (~ baseline)
+ */
+int compute_nb_threshold(int coverage, double purity, double clonality,
+                         double dispersion, double max_fnr)
+{
+    double mu = coverage * purity * clonality * 0.5;
+    if (mu <= 0.0) return 0;
+
+    double r = 1.0 / dispersion;
+    double p = r / (mu + r);
+    double q = 1.0 - p;
+
+    // Find het_cov = smallest k where P(X <= k) >= 1 - max_fnr
+    // i.e. the (1 - max_fnr) quantile of the NB distribution
+    double target = 1.0 - max_fnr;
+    double pmf = exp(r * log(p));  // P(X=0)
+    double cdf = pmf;
+    int het_cov = 0;
+    if (cdf >= target) {
+        het_cov = 0;
+    } else {
+        for (int k = 1; k <= (int)(mu * 10 + 100); k++) {
+            pmf *= (k - 1 + r) / (double)k * q;
+            cdf += pmf;
+            if (cdf >= target) {
+                het_cov = k;
+                break;
+            }
+        }
+    }
+    if (het_cov < 2) het_cov = 2;
+
+    int low_occ = (int)(het_cov * 0.5);
+    double cov_frac = cdf;  // P(X <= het_cov)
+
+    fprintf(stderr, "[M::%s] mu=%.2f het_cov=%d low_occ=%d "
+            "P(X<=het_cov)=%.4f max_fnr=%.2f\n",
+            __func__, mu, het_cov, low_occ, cov_frac, max_fnr);
+
+    return het_cov;
 }
 
 static int check_file(char* name, const char* opt)
@@ -1008,6 +1101,14 @@ int CommandLine_process(int argc, char *argv[], hifiasm_opt_t* asm_opt)
             asm_opt->sc_cut = atol(opt.arg);
         } else if (c == 367) {
             asm_opt->het_cov = atoi(opt.arg);
+        } else if (c == 368) {
+            asm_opt->tumor_purity = atof(opt.arg);
+        } else if (c == 369) {
+            asm_opt->clonality = atof(opt.arg);
+        } else if (c == 370) {
+            asm_opt->dispersion = atof(opt.arg);
+        } else if (c == 371) {
+            asm_opt->somatic_fnr = atof(opt.arg);
         } else if (c == 'l') {   ///0: disable purge_dup; 1: purge containment; 2: purge overlap
             asm_opt->purge_level_primary = asm_opt->purge_level_trio = atoi(opt.arg);
         }

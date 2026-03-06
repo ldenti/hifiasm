@@ -81,6 +81,11 @@ typedef struct {
 	double max_ov_diff_final;
 	int hom_cov;
     int het_cov;
+    // Somatic SFS threshold parameters (negative binomial model)
+    double tumor_purity;   // tumor purity rho, -1 = not set
+    double clonality;      // subclonal fraction f, -1 = not set
+    double dispersion;     // over-dispersion alpha for NB, default 0.02
+    double somatic_fnr;    // max allowed FNR (P), default 0.10
     int b_low_cov;
     int b_high_cov;
     double m_rate;
@@ -195,6 +200,8 @@ void ha_opt_reset_to_round(hifiasm_opt_t* asm_opt, int round);
 void ha_opt_update_cov(hifiasm_opt_t *opt, int hom_cov);
 void ha_opt_update_cov_min(hifiasm_opt_t *opt, int hom_cov, int min_chain);
 int CommandLine_process(int argc, char *argv[], hifiasm_opt_t* asm_opt);
+int compute_nb_threshold(int coverage, double purity, double clonality,
+                         double dispersion, double max_fnr);
 double Get_T(void);
 
 static inline int ha_opt_triobin(const hifiasm_opt_t *opt)

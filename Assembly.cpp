@@ -1005,7 +1005,23 @@ void ha_ec(int64_t round, int num_pround, int des_idx, uint64_t *tot_b, uint64_t
     if(ha_idx) hom_cov = asm_opt.hom_cov;
 	if(ha_idx == NULL) {
         ha_idx = ha_pt_gen(&asm_opt, ha_flt_tab, round == 0? 0 : 1, 0, &R_INF, &hom_cov, &het_cov); // build the index
-        asm_opt.hom_cov = hom_cov; asm_opt.het_cov = het_cov;
+        asm_opt.hom_cov = hom_cov;
+        if (asm_opt.het_cov == -1024) {
+            // If tumor-purity is set, compute het_cov via negative binomial model
+            if (asm_opt.tumor_purity > 0) {
+                double cl = (asm_opt.clonality > 0) ? asm_opt.clonality : 1.0;
+                int nb_tt = compute_nb_threshold(hom_cov, asm_opt.tumor_purity, cl,
+                                                 asm_opt.dispersion, asm_opt.somatic_fnr);
+                asm_opt.het_cov = (nb_tt > 0) ? nb_tt : 2;
+                fprintf(stderr, "[M::%s] NB threshold: coverage=%d purity=%.2f clonality=%.2f "
+                        "disp=%.3f fnr=%.2f => het_cov=%d\n",
+                        __func__, hom_cov, asm_opt.tumor_purity, cl,
+                        asm_opt.dispersion, asm_opt.somatic_fnr, asm_opt.het_cov);
+            } else {
+                asm_opt.het_cov = het_cov;
+            }
+        }
+        else fprintf(stderr, "[M::%s] using user-specified het_cov=%d (auto-detected=%d)\n", __func__, asm_opt.het_cov, het_cov);
     }
 	///debug_adapter(&asm_opt, &R_INF);
     if (round == 0 && ha_flt_tab == 0) // then asm_opt.hom_cov hasn't been updated
@@ -1055,7 +1071,18 @@ int ha_ec_dbg(void)
 	int hom_cov, het_cov;
 
     ha_idx = ha_pt_gen(&asm_opt, 0, 0, 0, &R_INF, &hom_cov, &het_cov); // build the index
-    asm_opt.hom_cov = hom_cov; asm_opt.het_cov = het_cov;
+    asm_opt.hom_cov = hom_cov;
+    if (asm_opt.het_cov == -1024) {
+        if (asm_opt.tumor_purity > 0) {
+            double cl = (asm_opt.clonality > 0) ? asm_opt.clonality : 1.0;
+            int nb_tt = compute_nb_threshold(hom_cov, asm_opt.tumor_purity, cl,
+                                             asm_opt.dispersion, asm_opt.somatic_fnr);
+            asm_opt.het_cov = (nb_tt > 0) ? nb_tt : 2;
+            fprintf(stderr, "[M::%s] NB threshold: het_cov=%d\n", __func__, asm_opt.het_cov);
+        } else {
+            asm_opt.het_cov = het_cov;
+        }
+    }
 	ha_opt_update_cov(&asm_opt, hom_cov);
 
     cal_ec_r_dbg(asm_opt.thread_num, R_INF.total_reads);
@@ -1177,7 +1204,16 @@ void ha_overlap_cal(int round, int read_from_store)
 	}
 	free(b);
     asm_opt.hom_cov = hom_cov;
-    asm_opt.het_cov = het_cov;
+    if (asm_opt.het_cov == -1024) {
+        if (asm_opt.tumor_purity > 0) {
+            double cl = (asm_opt.clonality > 0) ? asm_opt.clonality : 1.0;
+            int nb_tt = compute_nb_threshold(hom_cov, asm_opt.tumor_purity, cl,
+                                             asm_opt.dispersion, asm_opt.somatic_fnr);
+            asm_opt.het_cov = (nb_tt > 0) ? nb_tt : 2;
+        } else {
+            asm_opt.het_cov = het_cov;
+        }
+    }
 }
 
 
@@ -1900,7 +1936,16 @@ void hap_recalculate_peaks(char* output_file_name)
 
     ha_idx = ha_pt_gen(&asm_opt, ha_flt_tab, 1, 0, &R_INF, &hom_cov, &het_cov); // build the index
     asm_opt.hom_cov = hom_cov;
-    asm_opt.het_cov = het_cov;
+    if (asm_opt.het_cov == -1024) {
+        if (asm_opt.tumor_purity > 0) {
+            double cl = (asm_opt.clonality > 0) ? asm_opt.clonality : 1.0;
+            int nb_tt = compute_nb_threshold(hom_cov, asm_opt.tumor_purity, cl,
+                                             asm_opt.dispersion, asm_opt.somatic_fnr);
+            asm_opt.het_cov = (nb_tt > 0) ? nb_tt : 2;
+        } else {
+            asm_opt.het_cov = het_cov;
+        }
+    }
     ha_pt_destroy(ha_idx);
     ha_idx = 0;
 
@@ -1936,7 +1981,16 @@ void ha_overlap_final(void)
 		ha_ovec_destroy(b[i]);
 	free(b);
     asm_opt.hom_cov = hom_cov;
-    asm_opt.het_cov = het_cov;
+    if (asm_opt.het_cov == -1024) {
+        if (asm_opt.tumor_purity > 0) {
+            double cl = (asm_opt.clonality > 0) ? asm_opt.clonality : 1.0;
+            int nb_tt = compute_nb_threshold(hom_cov, asm_opt.tumor_purity, cl,
+                                             asm_opt.dispersion, asm_opt.somatic_fnr);
+            asm_opt.het_cov = (nb_tt > 0) ? nb_tt : 2;
+        } else {
+            asm_opt.het_cov = het_cov;
+        }
+    }
 }
 
 void ha_ec_ff(int renew_idx)
@@ -1950,7 +2004,17 @@ void ha_ec_ff(int renew_idx)
 
     if(!ha_idx) {
         ha_idx = ha_pt_gen(&asm_opt, ha_flt_tab, 1, 0, &R_INF, &hom_cov, &het_cov); // build the index
-        asm_opt.hom_cov = hom_cov; asm_opt.het_cov = het_cov;
+        asm_opt.hom_cov = hom_cov;
+        if (asm_opt.het_cov == -1024) {
+            if (asm_opt.tumor_purity > 0) {
+                double cl = (asm_opt.clonality > 0) ? asm_opt.clonality : 1.0;
+                int nb_tt = compute_nb_threshold(hom_cov, asm_opt.tumor_purity, cl,
+                                                 asm_opt.dispersion, asm_opt.somatic_fnr);
+                asm_opt.het_cov = (nb_tt > 0) ? nb_tt : 2;
+            } else {
+                asm_opt.het_cov = het_cov;
+            }
+        }
     }
 
     cal_ov_r(asm_opt.thread_num, R_INF.total_reads, renew_idx);
