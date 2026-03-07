@@ -462,63 +462,56 @@ void ha_opt_update_cov_min(hifiasm_opt_t *opt, int hom_cov, int min_chain)
  * that a true somatic variant has fewer reads than het_cov.  This is
  * reported for informational purposes.
  *
- * Returns: het_cov = Q(1-FNR) of NB(mu, 1/alpha) (>= 2).
- *          If mu <= 0, returns 0.
+ * Returns: Tt = minimum somatic support to protect from correction.
+ *          Tt is the largest integer s.t. P(X < Tt) <= max_fnr.
+ *          If mu <= 0, returns 0 (disabled).
  *
  * Logic:
- *   In hifiasm, higher het_cov = less aggressive error correction:
- *     - low_occ = floor(het_cov/2): k-mers with count <= low_occ are penalized
- *       (weight 2 => weaker overlaps => less correction => variant protected)
- *     - wcns_vote: oc[0] >= het_cov triggers forced correction; higher het_cov
- *       makes this harder to trigger, protecting low-coverage positions.
- *
- *   To protect somatic k-mers (expected count ~ mu) from error correction:
- *     het_cov = smallest k s.t. P(X <= k) >= 1 - FNR
- *   This is the (1-FNR) quantile of NB(mu, 1/dispersion).
+ *   mu = coverage * purity * clonality * 0.5  (expected somatic read count)
+ *   X ~ NB(r=1/alpha, p=r/(mu+r))
+ *   Find largest Tt where P(X < Tt) = CDF(Tt-1) <= max_fnr.
+ *   Then: if a position has >= Tt reads supporting the minority allele,
+ *   we skip correction (those reads are likely somatic, not errors).
  *
  *   Example (mu=3.74, alpha=0.02):
- *     FNR=0.10 => het_cov=6,  low_occ=3 (strong protection)
- *     FNR=0.20 => het_cov=5,  low_occ=2
- *     FNR=0.50 => het_cov=3-4 (~ baseline)
+ *     FNR=0.05 => Tt=1, P(X<1)=0.027 (accept 2.7% loss)
+ *     FNR=0.15 => Tt=2, P(X<2)=0.122 (accept 12.2% loss)
+ *     FNR=0.30 => Tt=3, P(X<3)=0.290 (accept 29.0% loss)
  */
 int compute_nb_threshold(int coverage, double purity, double clonality,
                          double dispersion, double max_fnr)
 {
+    // Expected somatic k-mer count: mu = C_t * rho * f * 0.5
     double mu = coverage * purity * clonality * 0.5;
     if (mu <= 0.0) return 0;
 
+    // NB parameters: r = 1/alpha, p = r/(r+mu)
     double r = 1.0 / dispersion;
     double p = r / (mu + r);
     double q = 1.0 - p;
 
-    // Find het_cov = smallest k where P(X <= k) >= 1 - max_fnr
-    // i.e. the (1 - max_fnr) quantile of the NB distribution
-    double target = 1.0 - max_fnr;
-    double pmf = exp(r * log(p));  // P(X=0)
-    double cdf = pmf;
-    int het_cov = 0;
-    if (cdf >= target) {
-        het_cov = 0;
+    // ppf(p_target): smallest k where CDF(k) >= p_target
+    // Iterate PMF/CDF until CDF(k) >= max_fnr
+    double pmf = exp(r * log(p));  // P(X=0) = p^r
+    double cdf = pmf;              // CDF(0)
+    int tt = 0;
+    if (cdf >= max_fnr) {
+        tt = 0;  // even k=0 has CDF >= p_target
     } else {
         for (int k = 1; k <= (int)(mu * 10 + 100); k++) {
             pmf *= (k - 1 + r) / (double)k * q;
-            cdf += pmf;
-            if (cdf >= target) {
-                het_cov = k;
+            cdf += pmf;  // CDF(k) = P(X <= k)
+            if (cdf >= max_fnr) {
+                tt = k;
                 break;
             }
         }
     }
-    if (het_cov < 2) het_cov = 2;
 
-    int low_occ = (int)(het_cov * 0.5);
-    double cov_frac = cdf;  // P(X <= het_cov)
+    fprintf(stderr, "[M::%s] mu=%.2f Tt=%d CDF(Tt)=%.4f p_target=%.2f\n",
+            __func__, mu, tt, cdf, max_fnr);
 
-    fprintf(stderr, "[M::%s] mu=%.2f het_cov=%d low_occ=%d "
-            "P(X<=het_cov)=%.4f max_fnr=%.2f\n",
-            __func__, mu, het_cov, low_occ, cov_frac, max_fnr);
-
-    return het_cov;
+    return tt;
 }
 
 static int check_file(char* name, const char* opt)

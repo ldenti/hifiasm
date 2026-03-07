@@ -95,9 +95,9 @@ void ha_get_new_candidates(ha_abuf_t *ab, int64_t rid, UC_Read *ucr, overlap_reg
 {
 	uint32_t i, rlen;
 	uint64_t k, l;
-	// If het_cov was set (user or NB model), use it to preserve somatic k-mers
-	uint32_t low_occ = (asm_opt.het_cov > 0 && asm_opt.het_cov != -1024) ?
-	                   (uint32_t)(asm_opt.het_cov * 0.5) :
+	// If user specified --het-cov, use a lower threshold to preserve low-frequency variants
+	uint32_t low_occ = (asm_opt.het_cov != -1024 && asm_opt.het_cov > 0) ? 
+	                   (uint32_t)(asm_opt.het_cov * 0.5) : 
 	                   (uint32_t)(asm_opt.hom_cov * HA_KMER_GOOD_RATIO);
 	uint32_t high_occ = asm_opt.hom_cov * (2.0 - HA_KMER_GOOD_RATIO);
 	if(low_occ < 2) low_occ = 2;
