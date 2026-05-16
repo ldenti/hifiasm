@@ -289,6 +289,7 @@ void init_opt(hifiasm_opt_t* asm_opt)
 	asm_opt->max_ov_diff_final = 0.03;
 	asm_opt->hom_cov = 20;
     asm_opt->het_cov = -1024;
+    asm_opt->user_het_cov = -1024;
     asm_opt->tumor_purity = -1.0;
     asm_opt->clonality = -1.0;
     asm_opt->dispersion = 0.02;
@@ -1094,6 +1095,7 @@ int CommandLine_process(int argc, char *argv[], hifiasm_opt_t* asm_opt)
             asm_opt->sc_cut = atol(opt.arg);
         } else if (c == 367) {
             asm_opt->het_cov = atoi(opt.arg);
+            asm_opt->user_het_cov = asm_opt->het_cov;
         } else if (c == 368) {
             asm_opt->tumor_purity = atof(opt.arg);
         } else if (c == 369) {

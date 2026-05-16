@@ -2223,7 +2223,7 @@ uint64_t wcns_vote(overlap_region* ol, All_reads *rref, char* qstr, uint64_t ql,
         ///a) pass coverage check; b) no enough coverage; c) variant has enough support (--het-cov)
         if(((oc[0] > (oc[1]*occ_exact)) && (oc[0] > (oc[1]-oc[0])) && (oc[1] >= occ_tot) && (oc[0] > 1)) ||
             (oc[1] < occ_tot) ||
-            (asm_opt.het_cov != -1024 && asm_opt.het_cov > 0 && oc[0] >= (uint64_t)asm_opt.het_cov)) {
+            (asm_opt.user_het_cov > 0 && oc[0] >= (uint64_t)asm_opt.user_het_cov)) {
             ///note: there might be insertions at q[k-1, k], insead if q[k, k+1]
             fI = 1;
             ///make sure there is no insertion
@@ -2233,7 +2233,7 @@ uint64_t wcns_vote(overlap_region* ol, All_reads *rref, char* qstr, uint64_t ql,
             ///a) pass coverage check; b) no enough coverage; c) variant has enough support (--het-cov)
             if((((oc[0] > (oc[1]*occ_exact)) && (oc[0] > (oc[1]-oc[0])) && (oc[1] >= occ_tot) && (oc[0] > 1))) || 
                 (oc[1] < occ_tot) ||
-                (asm_opt.het_cov != -1024 && asm_opt.het_cov > 0 && oc[0] >= (uint64_t)asm_opt.het_cov)) {
+                (asm_opt.user_het_cov > 0 && oc[0] >= (uint64_t)asm_opt.user_het_cov)) {
                 fI = 0;
             }
 
@@ -3238,8 +3238,8 @@ static void worker_hap_ec(void *data, long i, int tid)
 	ec_ovec_buf_t0 *b = &(((ec_ovec_buf_t*)data)->a[tid]);
     uint32_t high_occ = asm_opt.hom_cov * (2.0 - HA_KMER_GOOD_RATIO);
     // If user specified --het-cov, use a lower threshold to preserve low-frequency variants
-    uint32_t low_occ = (asm_opt.het_cov != -1024 && asm_opt.het_cov > 0) ? 
-                       (uint32_t)(asm_opt.het_cov * 0.5) : 
+    uint32_t low_occ = (asm_opt.user_het_cov > 0) ? 
+                       (uint32_t)(asm_opt.user_het_cov * 0.5) : 
                        (uint32_t)(asm_opt.hom_cov * HA_KMER_GOOD_RATIO);
     overlap_region *aux_o = NULL; asg64_v buf0; uint32_t qlen = 0;
 
@@ -3407,8 +3407,8 @@ static void worker_hap_ec_dbg_paf(void *data, long i, int tid)
     r_dbg_step_res_t *rr = &(((cal_ec_r_dbg_step_t*)data)->res[tid]);
     uint32_t high_occ = asm_opt.hom_cov * (2.0 - HA_KMER_GOOD_RATIO);
     // If user specified --het-cov, use a lower threshold to preserve low-frequency variants
-    uint32_t low_occ = (asm_opt.het_cov != -1024 && asm_opt.het_cov > 0) ? 
-                       (uint32_t)(asm_opt.het_cov * 0.5) : 
+    uint32_t low_occ = (asm_opt.user_het_cov > 0) ? 
+                       (uint32_t)(asm_opt.user_het_cov * 0.5) : 
                        (uint32_t)(asm_opt.hom_cov * HA_KMER_GOOD_RATIO);
     overlap_region *aux_o = NULL; i += ((cal_ec_r_dbg_step_t*)data)->si;
 
@@ -3922,8 +3922,8 @@ static void worker_hap_dc_ec_gen(void *data, long i, int tid)
     ec_ovec_buf_t0 *b = &(((ec_ovec_buf_t*)data)->a[tid]);
     uint32_t high_occ = asm_opt.hom_cov * (2.0 - HA_KMER_GOOD_RATIO);
     // If user specified --het-cov, use a lower threshold to preserve low-frequency variants
-    uint32_t low_occ = (asm_opt.het_cov != -1024 && asm_opt.het_cov > 0) ? 
-                       (uint32_t)(asm_opt.het_cov * 0.5) : 
+    uint32_t low_occ = (asm_opt.user_het_cov > 0) ? 
+                       (uint32_t)(asm_opt.user_het_cov * 0.5) : 
                        (uint32_t)(asm_opt.hom_cov * HA_KMER_GOOD_RATIO);
 
     recover_UC_Read(&b->self_read, &R_INF, i); 
@@ -3962,8 +3962,8 @@ static void worker_hap_dc_ec_gen_new_idx(void *data, long i, int tid)
     ec_ovec_buf_t0 *b = &(((ec_ovec_buf_t*)data)->a[tid]);
     uint32_t high_occ = asm_opt.hom_cov * (2.0 - HA_KMER_GOOD_RATIO);
     // If user specified --het-cov, use a lower threshold to preserve low-frequency variants
-    uint32_t low_occ = (asm_opt.het_cov != -1024 && asm_opt.het_cov > 0) ? 
-                       (uint32_t)(asm_opt.het_cov * 0.5) : 
+    uint32_t low_occ = (asm_opt.user_het_cov > 0) ? 
+                       (uint32_t)(asm_opt.user_het_cov * 0.5) : 
                        (uint32_t)(asm_opt.hom_cov * HA_KMER_GOOD_RATIO);
     uint32_t qlen = 0;
 
@@ -5801,8 +5801,8 @@ static void worker_hap_dc_ec0(void *data, long i, int tid)
     ec_ovec_buf_t0 *b = &(((ec_ovec_buf_t*)data)->a[tid]);
     uint32_t high_occ = asm_opt.hom_cov * (2.0 - HA_KMER_GOOD_RATIO);
     // If user specified --het-cov, use a lower threshold to preserve low-frequency variants
-    uint32_t low_occ = (asm_opt.het_cov != -1024 && asm_opt.het_cov > 0) ? 
-                       (uint32_t)(asm_opt.het_cov * 0.5) : 
+    uint32_t low_occ = (asm_opt.user_het_cov > 0) ? 
+                       (uint32_t)(asm_opt.user_het_cov * 0.5) : 
                        (uint32_t)(asm_opt.hom_cov * HA_KMER_GOOD_RATIO);
     asg64_v buf0; overlap_region *aux_o = NULL; uint32_t qlen = 0;
     // overlap_region *aux_o = NULL; asg64_v buf0;

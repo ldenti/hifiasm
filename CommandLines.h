@@ -81,6 +81,7 @@ typedef struct {
 	double max_ov_diff_final;
 	int hom_cov;
     int het_cov;
+    int user_het_cov;  // original user-specified --het-cov value, never modified after init
     // Somatic SFS threshold parameters (negative binomial model)
     double tumor_purity;   // tumor purity rho, -1 = not set
     double clonality;      // subclonal fraction f, -1 = not set

@@ -1215,8 +1215,8 @@ ha_pt_t *ha_pt_ug_gen(const hifiasm_opt_t *asm_opt, const void *flt_tab, ma_utg_
 
 ha_pt_t *ha_pt_gen_dp(const hifiasm_opt_t *asm_opt, ha_ct_t *ct, int flag, int n_thread, const void *flt_tab, All_reads *rs, int peak_hom, int peak_het)
 {
-	// Use user-specified het_cov if provided (not default -1024)
-	int use_peak_het = (asm_opt->het_cov != -1024) ? asm_opt->het_cov : peak_het;
+	// Use user-specified het_cov if provided (user_het_cov > 0)
+	int use_peak_het = (asm_opt->user_het_cov > 0) ? asm_opt->user_het_cov : peak_het;
 	int low_freq = mz_low_b(peak_hom, use_peak_het);
 	ha_pt_t *pt = ha_pt_gen_count(ct, n_thread); ///key = cnt, val = 0
 	ha_count(asm_opt, HAF_COUNT_EXACT|HAF_COUNT_REFINE|flag, !(asm_opt->flag&HA_F_NO_HPC), asm_opt->k_mer_length, asm_opt->mz_win, pt, flt_tab, rs, NULL, 1, &low_freq, 0);
@@ -1254,9 +1254,9 @@ ha_pt_t *ha_pt_gen(const hifiasm_opt_t *asm_opt, const void *flt_tab, int read_f
 	ha_ct_hist(ct, cnt, asm_opt->thread_num);
 	fprintf(stderr, "[M::%s] count[%d] = %ld (for sanity check)\n", __func__, YAK_MAX_COUNT, (long)cnt[YAK_MAX_COUNT]);
 	peak_hom = ha_analyze_count(YAK_N_COUNTS, asm_opt->min_hist_kmer_cnt, asm_opt->hg_size>0?(ct->bs/asm_opt->hg_size):(-1), cnt, &peak_het);
-	// Override peak_het if user specified --het-cov
-	if (asm_opt->het_cov != -1024) {
-		peak_het = asm_opt->het_cov;
+	// Override peak_het if user explicitly specified --het-cov
+	if (asm_opt->user_het_cov > 0) {
+		peak_het = asm_opt->user_het_cov;
 		fprintf(stderr, "[M::%s] using user-specified het_cov: %d\n", __func__, peak_het);
 	}
 	if (hom_cov) *hom_cov = peak_hom;
