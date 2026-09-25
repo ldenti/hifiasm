@@ -20,7 +20,7 @@ typedef signed long long __s64;
 
 #include <pthread.h>
 
-#define HA_VERSION "0.25.0-r726"
+#define HA_VERSION "v1.0.0-somatic (based on hifiasm 0.25.0-r726)"
 
 #define VERBOSE 0
 
