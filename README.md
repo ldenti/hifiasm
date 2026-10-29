@@ -1,3 +1,27 @@
+## <a name="somatic"></a>Somatic error correction
+
+This fork (v1.0.0-somatic, based on hifiasm 0.25.0-r726) error-corrects the reads of a tumor without erasing its somatic variants.
+It is the error-correction step of [VESPA](https://github.com/dcmonti/VESPA). Only the error correction changes; the assembly is that of hifiasm.
+
+```sh
+# tumor: corrected reads only (tumor.ec.fa)
+hifiasm -o tumor -t32 --write-ec --bin-only --het-cov <N> tumor.fq.gz
+# tumor: --het-cov from the negative-binomial model
+hifiasm -o tumor -t32 --write-ec --bin-only --tumor-purity <rho> --clonality <f> --somatic-fnr <P> tumor.fq.gz
+# normal: corrected reads (normal.ec.fa) and unitig graph (normal.bp.r_utg.gfa)
+hifiasm -o normal -t32 --write-ec --het-cov <N> normal.fq.gz
+```
+
+* `--het-cov INT`: the heterozygous read coverage, which hifiasm otherwise estimates from the k-mer histogram and uses to tell
+  sequencing errors from real alleles. A lower value keeps the alleles supported by fewer reads, such as somatic variants.
+* `--tumor-purity FLOAT`: tumor purity ρ in (0,1]. Without `--het-cov`, it makes hifiasm compute `--het-cov` from a
+  negative-binomial model of the reads that carry a somatic variant: X ~ NB(μ, α), μ = c·ρ·f/2, where c is the homozygous read
+  coverage estimated by hifiasm; `--het-cov` is set to the largest T with P(X < T) ≤ `--somatic-fnr` (at least 1).
+  The log reports the value (`NB somatic threshold: ... => het_cov=N`).
+* `--clonality FLOAT`: fraction f of the tumor cells that carry the variant, in (0,1] [1.0].
+* `--dispersion FLOAT`: over-dispersion α of the read depth [0.02].
+* `--somatic-fnr FLOAT`: largest fraction of somatic variants allowed below the threshold, that is, exposed to correction [0.10].
+
 ## <a name="started"></a>Getting Started
 
 ```sh
